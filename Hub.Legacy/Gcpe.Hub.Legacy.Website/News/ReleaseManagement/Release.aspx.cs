@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Web;
 using System.Web.UI;
 using System.Web.UI.WebControls;
@@ -358,6 +359,7 @@ namespace Gcpe.Hub.News.ReleaseManagement
         {
             // Used to compare with the Post-save Asset Uri. 
             string superAssetBeforeSave = String.Empty;
+            var isYoutubeAssetMaxResolution = false;
             if (Model.Asset != null)
             {
                 superAssetBeforeSave = Model.Asset.ToString();
@@ -385,6 +387,27 @@ namespace Gcpe.Hub.News.ReleaseManagement
 
                         if (assetUri == null)
                             throw new HubModelException(new string[] { "Invalid YouTube URL for SuperAsset (" + txtAsset.Text + ")." });
+
+                        // check max resolution thumbnail exists or not
+                        var query = HttpUtility.ParseQueryString(assetUri.Query);
+
+                        if (!string.IsNullOrEmpty(query["v"]))
+                        {
+                            var videoId = query["v"];
+                            var thumbnailUri = new Uri(string.Format("https://img.youtube.com/vi/{0}/maxresdefault.jpg", videoId));
+                            HttpWebRequest request = (HttpWebRequest)HttpWebRequest.Create(thumbnailUri);
+                            request.Method = "HEAD";
+                            try
+                            {
+                                request.GetResponse();
+                                isYoutubeAssetMaxResolution = true;
+                            }
+                            catch
+                            {
+                                isYoutubeAssetMaxResolution = false; 
+                            }  
+                        }
+
                     }
                     else if (!assetUri.Host.Contains("facebook.com") && assetUri.ToString() != "https://news.gov.bc.ca/live")
                     {
@@ -431,7 +454,10 @@ namespace Gcpe.Hub.News.ReleaseManagement
                 }
 
                 bool superAssetHasChanged = (superAssetBeforeSave != superAssetAfterSave);
-
+                if (!isYoutubeAssetMaxResolution)
+                {
+                    throw new HubModelException(new string[] { "The selected YouTube video (" + txtAsset.Text + ") needs a custom thumbnail exported from Photoshop, with the dimensions of 1500 x 844 pixels." });
+                }
             }
             catch (HubModelException mEx)
             {
